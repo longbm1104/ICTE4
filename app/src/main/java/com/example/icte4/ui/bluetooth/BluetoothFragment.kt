@@ -83,7 +83,7 @@ class BluetoothFragment : Fragment() {
     }
 
     private fun startDiscovery() {
-        if (ActivityCompat.checkSelfPermission(requireContext(), Manifest.permission.BLUETOOTH) == PackageManager.PERMISSION_GRANTED) {
+        if (ActivityCompat.checkSelfPermission(requireContext(), Manifest.permission.BLUETOOTH_SCAN) == PackageManager.PERMISSION_GRANTED) {
             Toast.makeText(requireContext(), "BLUETOOTH_SCAN permission granted", Toast.LENGTH_SHORT).show()
             if (!hasPermissions(requireContext(), REQUIRED_PERMISSIONS)) {
                 requestMultiplePermissions.launch(
@@ -111,7 +111,7 @@ class BluetoothFragment : Fragment() {
                         // Check for BLUETOOTH_CONNECT permission before accessing device name and address
                         if (ActivityCompat.checkSelfPermission(
                                 context,
-                                Manifest.permission.BLUETOOTH
+                                Manifest.permission.BLUETOOTH_CONNECT
                             )
                             == PackageManager.PERMISSION_GRANTED
                         ) {
