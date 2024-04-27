@@ -21,6 +21,9 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat.getSystemService
 import androidx.core.content.ContextCompat.registerReceiver
 import android.Manifest
+import android.bluetooth.BluetoothGatt
+import android.bluetooth.BluetoothGattCallback
+import android.bluetooth.BluetoothProfile
 import android.content.BroadcastReceiver
 import android.content.Intent
 import android.os.Build
@@ -53,6 +56,27 @@ class BluetoothFragment : Fragment() {
         }
     }
 
+    private val connect = object : BluetoothGattCallback() {
+        override fun onConnectionStateChange(gatt: BluetoothGatt?, status: Int, newState: Int) {
+            super.onConnectionStateChange(gatt, status, newState)
+            val deviceName = gatt?.device?.name ?: "Unknown Device"
+            when (newState) {
+                BluetoothProfile.STATE_CONNECTED -> {
+                    // Connection established, you can now discover services, etc.
+                    requireActivity().runOnUiThread {
+                        Toast.makeText(requireContext(), "Connected to $deviceName", Toast.LENGTH_SHORT).show()
+                    }
+                }
+                BluetoothProfile.STATE_DISCONNECTED -> {
+                    // Connection disconnected
+                    requireActivity().runOnUiThread {
+                        Toast.makeText(requireContext(), "Disconnected from $deviceName", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+        }
+    }
+
     private lateinit var arrayAdapter: ArrayAdapter<String>
     private lateinit var buttonDiscover: Button
 
@@ -72,6 +96,15 @@ class BluetoothFragment : Fragment() {
         arrayAdapter = ArrayAdapter(activity, android.R.layout.simple_list_item_1)
         listView.adapter = arrayAdapter
 
+        listView.setOnItemClickListener { parent, listViewItemView, position, id ->
+            val item = parent.getItemAtPosition(position) as String
+            val deviceAddress = item.split(" | ")[1] // Extract device address from item
+            val bluetoothManager = requireContext().getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
+            val bluetoothAdapter = bluetoothManager.adapter
+            val device = bluetoothAdapter.getRemoteDevice(deviceAddress)
+            connectToDevice(device)
+        }
+
         // IntentFilter to listen for Bluetooth devices found during discovery
         val filter = IntentFilter(BluetoothDevice.ACTION_FOUND)
         activity.registerReceiver(receiver, filter)
@@ -82,8 +115,23 @@ class BluetoothFragment : Fragment() {
         }
     }
 
+    private fun connectToDevice(it: BluetoothDevice) {
+        Toast.makeText(requireContext(), "Clicked Devices" + it.name, Toast.LENGTH_SHORT).show()
+        // Connect to the device using connectGatt
+        val bluetoothGatt = if (ActivityCompat.checkSelfPermission(
+                requireContext(),
+                Manifest.permission.BLUETOOTH_CONNECT
+            ) != PackageManager.PERMISSION_GRANTED && !hasPermissions(requireContext(), REQUIRED_PERMISSIONS)
+        ) {
+            Toast.makeText(requireContext(), "Missing BLUETOOTH_CONNECT permission", Toast.LENGTH_SHORT).show()
+            return
+        } else {
+            it.connectGatt(requireContext(), false, connect)
+        }
+    }
+
     private fun startDiscovery() {
-        if (ActivityCompat.checkSelfPermission(requireContext(), Manifest.permission.BLUETOOTH_SCAN) == PackageManager.PERMISSION_GRANTED) {
+        if (ActivityCompat.checkSelfPermission(requireContext(), Manifest.permission.BLUETOOTH) == PackageManager.PERMISSION_GRANTED) {
             Toast.makeText(requireContext(), "BLUETOOTH_SCAN permission granted", Toast.LENGTH_SHORT).show()
             if (!hasPermissions(requireContext(), REQUIRED_PERMISSIONS)) {
                 requestMultiplePermissions.launch(
@@ -113,15 +161,8 @@ class BluetoothFragment : Fragment() {
                                 context,
                                 Manifest.permission.BLUETOOTH_CONNECT
                             )
-                            == PackageManager.PERMISSION_GRANTED
+                            == PackageManager.PERMISSION_GRANTED || hasPermissions(requireContext(), REQUIRED_PERMISSIONS)
                         ) {
-                            // Add the device name and address to the ArrayAdapter for display in the ListView
-//                            Toast.makeText(
-//                                context,
-//                                "Found device: ${device.name}",
-//                                Toast.LENGTH_SHORT
-//                            ).show()
-
                             arrayAdapter.add("${it.name ?: "Unknown"} | ${it.address}")
                         }
                     }
@@ -129,15 +170,6 @@ class BluetoothFragment : Fragment() {
             }
         }
     }
-
-//    override fun onStart() {
-//        super.onStart()
-//        if (!hasPermissions(requireContext(), REQUIRED_PERMISSIONS)) {
-//            requestMultiplePermissions.launch(
-//                REQUIRED_PERMISSIONS
-//            )
-//        }
-//    }
 
     override fun onDestroy() {
         super.onDestroy()
